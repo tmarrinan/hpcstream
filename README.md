@@ -1,3 +1,3 @@
 # HpcStream
 
-In Transit Streaming Library for MPI Applications
+An In Transit Streaming Library for MPI Applications
