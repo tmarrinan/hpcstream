@@ -1,7 +1,6 @@
 #include <iostream>
 #include <vector>
 #include <numeric>
-#include <netsocket/client.h>
 #include <mpi.h>
 #include <ddr.h>
 #include <glad/glad.h>]
@@ -10,8 +9,8 @@
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include "hpcstream/client.h"
 
-enum DataType : uint8_t {Uint8, Uint16, Uint32, Uint64, Int8, Int16, Int32, Int64, Float, Double, ArraySize};
 typedef struct Screen {
     int width;
     int height;
@@ -31,7 +30,6 @@ GShaderProgram CreateTextureShader();
 GLint CompileShader(char *source, uint32_t length, GLint type);
 void CreateShaderProgram(GLint vertex_shader, GLint fragment_shader, GLuint *program);
 void LinkShaderProgram(GLuint program);
-uint32_t GetDataTypeSize(DataType type);
 int32_t ReadFile(const char* filename, char** data_ptr);
 
 GLuint vertex_position_attrib = 0;
@@ -52,12 +50,20 @@ int main(int argc, char **argv)
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
-    // NetSocket clients
+    // HpcStream clients
     if (argc < 3)
     {
-        fprintf(stderr, "Error: no host and port provided for server (rank 0)\n");
+        fprintf(stderr, "Error: no host and port provided for HpcStream server (rank 0)\n");
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
+    HpcStream::Client stream(argv[1], atoi(argv[2]), MPI_COMM_WORLD);
+
+    printf("[rank %d] CLIENT INITIALIZED\n", rank);
+
+
+
+
+
     int i;
     std::vector<NetSocket::Client*> clients;
     NetSocket::ClientOptions options = NetSocket::CreateClientOptions();
@@ -205,7 +211,7 @@ int main(int argc, char **argv)
                 vars_offset += var_name_len;
                 uint32_t var_dims = ntohl(*((uint32_t*)(data + vars_offset)));
                 vars_offset += sizeof(uint32_t);
-                DataType var_type = (DataType)(*((uint8_t*)(data + vars_offset)));
+                HpcStream::DataType var_type = (HpcStream::DataType)(*((uint8_t*)(data + vars_offset)));
                 vars_offset += sizeof(uint8_t);
                 uint32_t var_size = ntohl(*((uint32_t*)(data + vars_offset)));
                 vars_offset += sizeof(uint32_t);
@@ -639,33 +645,6 @@ void LinkShaderProgram(GLuint program)
     if (status == 0)
     {
         fprintf(stderr, "Error: unable to initialize shader program\n");
-    }
-}
-
-uint32_t GetDataTypeSize(DataType type)
-{
-    uint32_t size = 0;
-    switch (type)
-    {
-        case DataType::Int8:
-        case DataType::Uint8:
-            size = 1;
-            break;
-        case DataType::Int16:
-        case DataType::Uint16:
-            size = 2;
-            break;
-        case DataType::Int32:
-        case DataType::Uint32:
-        case DataType::Float:
-        case DataType::ArraySize:
-            size = 4;
-            break;
-        case DataType::Int64:
-        case DataType::Uint64:
-        case DataType::Double:
-            size = 8;
-            break; 
     }
 }
 

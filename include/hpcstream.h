@@ -12,6 +12,8 @@ namespace HpcStream {
 
     class Server;
     class Client;
+
+    uint32_t GetDataTypeSize(DataType type);
 }
 
 #endif // __HPCSTREAM_H_

@@ -1,6 +1,6 @@
 #include "hpcstream/server.h"
 
-HpcStream::Server::Server(char *iface, uint16_t port, MPI_Comm comm) :
+HpcStream::Server::Server(const char *iface, uint16_t port, MPI_Comm comm) :
     _port(port),
     _num_connections(0),
     _ip_address_list(NULL),
@@ -30,11 +30,11 @@ HpcStream::Server::Server(char *iface, uint16_t port, MPI_Comm comm) :
     uint8_t int_bin = *reinterpret_cast<uint8_t*>(&int_test);
     if (int_bin == 1)
     {
-        _endianness = Endian::Little;
+        _endianness = HpcStream::Endian::Little;
     }
     else
     {
-        _endianness = Endian::Big;
+        _endianness = HpcStream::Endian::Big;
     }
     double float_test = HPCSTREAM_FLOATTEST;
     int64_t float_bin = *reinterpret_cast<uint64_t*>(&float_test);

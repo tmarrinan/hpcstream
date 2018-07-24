@@ -63,7 +63,7 @@ private:
     std::vector<std::string> ParseVarCounts(std::string counts);
 
 public:
-    Server(char *iface, uint16_t port, MPI_Comm comm);
+    Server(const char *iface, uint16_t port, MPI_Comm comm);
     ~Server();
 
     void DefineVar(std::string name, HpcStream::DataType base_type, std::string global_size, std::string local_size, std::string local_offset);

@@ -14,7 +14,7 @@ SRCDIR= src
 OBJDIR= obj
 LIBDIR= lib
 BINDIR= bin
-OBJS= $(addprefix $(OBJDIR)/, server.o client.o)
+OBJS= $(addprefix $(OBJDIR)/, hpcstream.o server.o client.o)
 HSLIB= $(addprefix $(LIBDIR)/, libhpcstream.a)
 
 # PX STREAM SERVER
