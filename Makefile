@@ -10,26 +10,53 @@ DDR_DIR= $(HOME)/Dev/ddr
 
 # HPC STREAM LIBRARY
 INC= -I${NETSOCKET_DIR}/include -I$(OPENSSL_DIR)/include -I./include
-LIB= -L${NETSOCKET_DIR}/lib -lnetsocket -lssl -lcrypto
 SRCDIR= src
 OBJDIR= obj
 LIBDIR= lib
 BINDIR= bin
 OBJS= $(addprefix $(OBJDIR)/, server.o client.o)
-EXEC= $(addprefix $(LIBDIR)/, libhpcstream.a)
+HSLIB= $(addprefix $(LIBDIR)/, libhpcstream.a)
+
+# PX STREAM SERVER
+TEST_INC_S= -I${NETSOCKET_DIR}/include -I$(OPENSSL_DIR)/include -I./include -I./example/include
+TEST_LIB_S= -L${NETSOCKET_DIR}/lib -L./lib -lnetsocket -lssl -lcrypto -lhpcstream
+TEST_SRCDIR_S= example/src/server
+TEST_OBJDIR_S= obj/server
+TEST_OBJS_S= $(addprefix $(TEST_OBJDIR_S)/, pxserver.o)
+TEST_S= $(addprefix $(BINDIR)/, pxserver)
+
+# PX STREAM CLIENT
+TEST_INC_C= -I${NETSOCKET_DIR}/include -I$(OPENSSL_DIR)/include -I$(DDR_DIR)/include -I./include
+TEST_LIB_C= -L${NETSOCKET_DIR}/lib -L${DDR_DIR}/lib -L./lib -lnetsocket -lddr -lssl -lcrypto -lglfw -lglad -lhpcstream
+TEST_SRCDIR_C= example/src/client
+TEST_OBJDIR_C= obj/client
+TEST_OBJS_C= $(addprefix $(TEST_OBJDIR_C)/, pxclient.o)
+TEST_C= $(addprefix $(BINDIR)/, pxclient)
 
 # CREATE DIRECTORIES (IF DON'T ALREADY EXIST)
-mkdirs:= $(shell mkdir -p $(OBJDIR) $(LIBDIR) $(BINDIR))
+mkdirs:= $(shell mkdir -p $(OBJDIR) $(TEST_OBJDIR_S) $(TEST_OBJDIR_C) $(LIBDIR) $(BINDIR))
 
 # BUILD EVERYTHING
-all: $(EXEC)
+all: $(HSLIB) $(TEST_S) $(TEST_C) 
 
-$(EXEC): $(OBJS)
+$(HSLIB): $(OBJS)
 	$(LIBCXX) $(LIBCXX_FLAGS) $@ $^
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp
 	$(MPICXX) $(MPICXX_FLAGS) -c -o $@ $< $(INC)
 
+$(TEST_S): $(TEST_OBJS_S)
+	$(MPICXX) $(MPICXX_FLAGS) -o $@ $^ $(TEST_LIB_S)
+
+$(TEST_OBJDIR_S)/%.o: $(TEST_SRCDIR_S)/%.cpp
+	$(MPICXX) $(MPICXX_FLAGS) -c -o $@ $< $(TEST_INC_S)
+
+$(TEST_C): $(TEST_OBJS_C)
+	$(MPICXX) $(MPICXX_FLAGS) -o $@ $^ $(TEST_LIB_C)
+
+$(TEST_OBJDIR_C)/%.o: $(TEST_SRCDIR_C)/%.cpp
+	$(MPICXX) $(MPICXX_FLAGS) -c -o $@ $< $(TEST_INC_C)
+
 # REMOVE OLD FILES
 clean:
-	rm -f $(OBJS) $(EXEC)
+	rm -f $(OBJS) $(HSLIB) $(TEST_OBJS_S) $(TEST_OBJS_C) $(TEST_S) $(TEST_C)
