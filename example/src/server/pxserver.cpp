@@ -119,6 +119,7 @@ int main(int argc, char **argv)
         stream.AdvanceTimeStep();
     }
     if (rank == 0) printf("all done - goodbye\n");
+    // TODO: stream.Finalize()
 
     MPI_Finalize();
     

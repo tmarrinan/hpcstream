@@ -37,6 +37,7 @@ private:
         NetSocket::ClientConnection::Pointer client;
         int remote_rank;
         int num_remote_ranks;
+        bool is_new;
         bool has_same_endianness;
     } Connection;
 

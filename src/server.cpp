@@ -188,9 +188,14 @@ void HpcStream::Server::SetValue(std::string name, void *value)
 
 void HpcStream::Server::Write()
 {
+    bool new_conn = false;
+    for (auto const& c : _connections)
+    {
+        new_conn |= c.second.is_new;
+    }
     for (auto& x : _vars)
     {
-        if (x.second.updated && x.second.gs_vars.size() == 0)
+        if ((x.second.updated || new_conn) && x.second.gs_vars.size() == 0)
         {
             uint32_t name_len = x.first.length();
             uint32_t send_size = sizeof(uint32_t) + name_len + (x.second.size * x.second.length);
@@ -200,7 +205,10 @@ void HpcStream::Server::Write()
             memcpy(send_buffer + sizeof(uint32_t) + name_len, x.second.val, x.second.size * x.second.length);
             for (auto const& c : _connections)
             {
-                c.second.client->Send(send_buffer, send_size, NetSocket::CopyMode::MemCopy);
+                if (c.second.is_new || x.second.updated)
+                {
+                    c.second.client->Send(send_buffer, send_size, NetSocket::CopyMode::MemCopy);
+                }
             }
             delete[] send_buffer;
             x.second.updated = false;
@@ -208,7 +216,7 @@ void HpcStream::Server::Write()
     }
     for (auto& x : _vars)
     {
-        if (x.second.updated && x.second.gs_vars.size() > 0)
+        if ((x.second.updated || new_conn) && x.second.gs_vars.size() > 0)
         {
             uint32_t name_len = x.first.length();
             uint32_t send_size = sizeof(uint32_t) + name_len + (x.second.size * x.second.length);
@@ -218,16 +226,23 @@ void HpcStream::Server::Write()
             memcpy(send_buffer + sizeof(uint32_t) + name_len, x.second.val, x.second.size * x.second.length);
             for (auto const& c : _connections)
             {
-                c.second.client->Send(send_buffer, send_size, NetSocket::CopyMode::MemCopy);
+                if (c.second.is_new || x.second.updated)
+                {
+                    c.second.client->Send(send_buffer, send_size, NetSocket::CopyMode::MemCopy);
+                }
             }
             delete[] send_buffer;
             x.second.updated = false;
         }
     }
     uint8_t done = 255;
-    for (auto const& c : _connections)
+    for (auto& c : _connections)
     {
         c.second.client->Send(&done, 1, NetSocket::CopyMode::MemCopy);
+        if (c.second.is_new)
+        {
+            c.second.is_new = false;
+        }
     }
 }
 
@@ -373,7 +388,7 @@ bool HpcStream::Server::HandleNewConnection(NetSocket::Server::Event& event)
     switch (event.type)
     {
         case NetSocket::Server::EventType::Connect:
-            _connections[event_client_id] = {0, ClientState::Connecting, event.client, 0, 0, false};
+            _connections[event_client_id] = {0, ClientState::Connecting, event.client, 0, 0, true, false};
             if (_rank == 0)
             {
                 // send server ip addresses and ports for all ranks
