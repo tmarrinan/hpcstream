@@ -10,6 +10,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include "hpcstream/client.h"
+#include "jsobject.hpp"
 
 typedef struct Screen {
     int width;
@@ -23,7 +24,8 @@ typedef struct GShaderProgram {
     GLint img_uniform;
 } GShaderProgram;
 
-void Init(GLFWwindow *window, Screen &screen, GShaderProgram *shader, GLuint *vao, GLuint *tex_id);
+void GetLocalPixelLocations(int rank, jsvar& config, uint32_t *px_size, int32_t *local_px_size, int32_t *local_px_offset, int32_t *local_render_size, int32_t *local_render_offset);
+void Init(int rank, GLFWwindow *window, Screen &screen, int32_t *local_render_size, int32_t *local_render_offset, GShaderProgram *shader, GLuint *vao, GLuint *tex_id);
 void Render(GLFWwindow *window, GShaderProgram& shader, GLuint vao, GLuint tex_id);
 GLuint CreateRectangleVao();
 GShaderProgram CreateTextureShader();
@@ -50,6 +52,15 @@ int main(int argc, char **argv)
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
+    // read config file
+    jsvar config = jsobject::parseFromFile("example/resrc/config/laptop2-cfg.json");
+    if (num_ranks != config["screen"]["displays"].length())
+    {
+        fprintf(stderr, "Error: app configured for %d ranks\n", config["screen"]["displays"].length());
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+    jsvar display = config["screen"]["displays"][rank];
+
     // HpcStream clients
     if (argc < 3)
     {
@@ -57,13 +68,85 @@ int main(int argc, char **argv)
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
     HpcStream::Client stream(argv[1], atoi(argv[2]), MPI_COMM_WORLD);
+    printf("[rank %d] HpcStream connected\n", rank);
+    
+    // read first time step
+    stream.Read();
+    uint32_t px_size[2];
+    stream.GetGlobalSizeForVariable("pixels", px_size);
+    px_size[0] /= 4; // RGBA per pixel
+    if (rank == 0) printf("[PxClient] total image buffer size: %ux%u\n", px_size[0], px_size[1]);
+    
+    // calculate pixel locations per display
+    int32_t local_px_size[2];
+    int32_t local_px_offset[2];
+    int32_t local_render_size[2];
+    int32_t local_render_offset[2];
+    GetLocalPixelLocations(rank, config, px_size, local_px_size, local_px_offset, local_render_size, local_render_offset);
+    printf("[rank %d] local px size: %ux%u, local px offset: %u %u\n", rank, local_px_size[0], local_px_size[1], local_px_offset[0], local_px_offset[1]);
+    printf("[rank %d] local render size: %ux%u, local render offset: %u %u\n", rank, local_render_size[0], local_render_size[1], local_render_offset[0], local_render_offset[1]);
+    int32_t px_rgba_size[2] = {local_px_size[0] * 4, local_px_size[1]};
+    int32_t px_rgba_offset[2] = {local_px_offset[0] * 4, local_px_offset[1]};
+    printf("[rank %d] rgba %dx%d\n", rank, px_rgba_size[0], px_rgba_size[1]);
+    HpcStream::Client::GlobalSelection px_selection = stream.CreateGlobalArraySelection("pixels", px_rgba_size, px_rgba_offset);
+    uint8_t *texture = new uint8_t[local_px_size[0] * local_px_size[1] * 4];
+    memset(texture, 128, local_px_size[0] * local_px_size[1] * 4);
 
-    printf("[rank %d] CLIENT INITIALIZED\n", rank);
+    // initialize GLFW
+    if (!glfwInit())
+    {
+        exit(1);
+    }
+
+    // define screen properties
+    Screen screen;
+    screen.width = display["width"];
+    screen.height = display["height"];
+    strcpy(screen.title, (std::string("PxStream Client: ") + std::to_string(rank)).c_str());
+
+    // create a window and its OpenGL context
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    GLFWwindow *window = glfwCreateWindow(screen.width, screen.height, screen.title, NULL, NULL);
+
+    // make window's context current
+    glfwMakeContextCurrent(window);
+    glfwSwapInterval(1);
+
+    // initialize Glad OpenGL extension handling
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    {
+        exit(1);
+    }
+
+    // main event loop
+    GShaderProgram shader;
+    GLuint vao;
+    GLuint tex_id;
+    Init(rank, window, screen, local_render_size, local_render_offset,  &shader, &vao, &tex_id);
+    while (!glfwWindowShouldClose(window))
+    {
+        glfwPollEvents();
+
+        stream.FillSelection(px_selection, texture);
+
+        glBindTexture(GL_TEXTURE_2D, tex_id);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, local_px_size[0], local_px_size[1], 0, GL_RGBA, GL_UNSIGNED_BYTE, texture);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        Render(window, shader, vao, tex_id);
+
+        stream.ReleaseTimeStep();
+        stream.Read();
+    }
 
 
 
 
 
+
+    /*
     int i;
     std::vector<NetSocket::Client*> clients;
     NetSocket::ClientOptions options = NetSocket::CreateClientOptions();
@@ -118,22 +201,7 @@ int main(int argc, char **argv)
     }
     MPI_Bcast(remote_ip_addresses, 4 * num_remote_ranks, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
     MPI_Bcast(remote_ports, num_remote_ranks, MPI_UNSIGNED_SHORT, 0, MPI_COMM_WORLD);
-    /*if (rank == 0)
-    {
-        uint8_t info_received[13];
-        uint32_t *info_remote_ranks = (uint32_t*)info_received;
-        uint32_t *info_rank = (uint32_t*)info_received + 1;
-        uint32_t *info_ranks = (uint32_t*)info_received + 2;
-        *info_remote_ranks = htonl(num_remote_ranks);
-        *info_rank = htonl(rank);
-        *info_ranks = htonl(num_ranks);
-        info_received[12] = 0; // little endian
-        clients[0]->Send(info_received, 13, NetSocket::CopyMode::MemCopy);
-        if (clients[0]->WaitForNextEvent().type != NetSocket::Client::EventType::SendFinished)
-        {
-            printf("Error: unexpected event\n");
-        }
-    }*/
+
     int connections_per_rank = num_remote_ranks / num_ranks;
     int connections_extra = num_remote_ranks % num_ranks;
     int num_connections = connections_per_rank + (rank < connections_extra ? 1 : 0);
@@ -252,24 +320,7 @@ int main(int argc, char **argv)
                         printf("lo var: %s\n", lo.c_str());
                     }
                 }
-                //uint32_t *var_g_size = new uint32_t[var_dims * sizeof(uint32_t)];
-                //memcpy(var_g_size, data + vars_offset, var_dims * sizeof(uint32_t));
-                //vars_offset += var_dims * sizeof(uint32_t);
-                //uint32_t *var_l_size = new uint32_t[var_dims * sizeof(uint32_t)];
-                //memcpy(var_l_size, data + vars_offset, var_dims * sizeof(uint32_t));
-                //vars_offset += var_dims * sizeof(uint32_t);
-                //uint32_t *var_l_offset = new uint32_t[var_dims * sizeof(uint32_t)];
-                //memcpy(var_l_offset, data + vars_offset, var_dims * sizeof(uint32_t));
-                //vars_offset += var_dims * sizeof(uint32_t);
                 printf("[rank %d] client %d: var = %s, %u (t=%u)\n", rank, i, var_name.c_str(), var_dims, var_type);
-                /*if (var_name == "pixels")
-                {
-                    connection_widths[i - connection_offset] = 0;//var_l_size[0];
-                    connection_heights[i - connection_offset] = 0;//var_l_size[1];
-                    connection_offsets[i - connection_offset] = offset;
-                    offset += connection_widths[i - connection_offset] * connection_heights[i - connection_offset];
-                    printf("[rank %d] client %d: %dx%d\n", rank, i, connection_widths[i - connection_offset] / 4, connection_heights[i - connection_offset]);
-                }*/
             }
         }
         else {
@@ -456,17 +507,18 @@ int main(int argc, char **argv)
         Render(window, shader, vao, tex_id);
         printf("[rank %d] showing iteration %d (%u %u %u %u)\n", rank, it, texture[0], texture[1], texture[2], texture[3]);
 
-        /*for (i = 0; i < clients.size(); i++)
-        {
-            NetSocket::Client::Event event;
-            do
-            {
-                event = clients[i]->PollForNextEvent();
-            } while (event.type != NetSocket::Client::EventType::SendFinished);
-        }*/
+        //for (i = 0; i < clients.size(); i++)
+        //{
+        //    NetSocket::Client::Event event;
+        //    do
+        //    {
+        //        event = clients[i]->PollForNextEvent();
+        //    } while (event.type != NetSocket::Client::EventType::SendFinished);
+        //}
         printf("[rank %d] finishing iteration %d\n", rank, it);
         it++;
     }
+    */
 
     // finalize
     glfwDestroyWindow(window);
@@ -476,19 +528,96 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void Init(GLFWwindow *window, Screen &screen, GShaderProgram *shader, GLuint *vao, GLuint *tex_id)
+void GetLocalPixelLocations(int rank, jsvar& config, uint32_t *px_size, int32_t *local_px_size, int32_t *local_px_offset, int32_t *local_render_size, int32_t *local_render_offset)
+{
+    jsvar display = config["screen"]["displays"][rank];
+    double px_aspect = (double)px_size[0] / (double)px_size[1];
+    double display_aspect = (double)config["screen"]["resolution"]["width"] / (double)config["screen"]["resolution"]["height"];
+    if (rank == 0) printf("[PxClient] image aspect: %.3lf, display aspect: %.3lf\n", px_aspect, display_aspect);
+    local_render_size[0] = display["width"];
+    local_render_size[1] = display["height"];
+    local_render_offset[0] = 0;
+    local_render_offset[1] = 0;
+    if (px_aspect < display_aspect)
+    {
+        double scale = (double)px_size[1] / (double)config["screen"]["resolution"]["height"];
+        int32_t d_offset_x = ((int32_t)((double)px_size[1] * display_aspect) - px_size[0]) / 2;
+        int32_t d_width = px_size[0];
+        local_px_size[0] = (int32_t)((double)display["width"] * scale);
+        local_px_size[1] = (int32_t)((double)display["height"] * scale);
+        local_px_offset[0] = (int32_t)((double)display["x"] * scale);
+        local_px_offset[1] = (int32_t)((double)display["y"] * scale);
+        if (d_offset_x > local_px_offset[0])
+        {
+            local_render_offset[0] = (int32_t)((double)(d_offset_x - local_px_offset[0]) / scale);
+            local_render_size[0] -= local_render_offset[0];
+            local_px_size[0] -= d_offset_x - local_px_offset[0];
+            local_px_offset[0] = d_offset_x;
+        }
+        if (d_offset_x + d_width < local_px_offset[0] + local_px_size[0])
+        {
+            local_render_size[0] -= (int32_t)((double)((local_px_offset[0] + local_px_size[0]) - (d_offset_x + d_width)) / scale);
+            local_px_size[0] = d_offset_x + d_width - local_px_offset[0];
+        }
+        local_px_offset[0] -= d_offset_x;
+    }
+    else
+    {
+        double scale = (double)px_size[0] / (double)config["screen"]["resolution"]["width"];
+        int32_t d_offset_y = ((int32_t)((double)px_size[0] / display_aspect) - px_size[1]) / 2;
+        int32_t d_height = px_size[1];
+        local_px_size[0] = (int32_t)((double)display["width"] * scale);
+        local_px_size[1] = (int32_t)((double)display["height"] * scale);
+        local_px_offset[0] = (int32_t)((double)display["x"] * scale);
+        local_px_offset[1] = (int32_t)((double)display["y"] * scale);
+        if (d_offset_y > local_px_offset[1])
+        {
+            local_render_offset[1] = (int32_t)((double)(d_offset_y - local_px_offset[1]) / scale);
+            local_render_size[1] -= local_render_offset[1];
+            local_px_size[1] -= d_offset_y - local_px_offset[1];
+            local_px_offset[1] = d_offset_y;
+        }
+        if (d_offset_y + d_height < local_px_offset[1] + local_px_size[1])
+        {
+            local_render_size[1] -= (int32_t)((double)((local_px_offset[1] + local_px_size[1]) - (d_offset_y + d_height)) / scale);
+            local_px_size[1] = d_offset_y + d_height - local_px_offset[1];
+        }
+        local_px_offset[1] -= d_offset_y;
+    }
+
+    if (local_render_size[0] < 0)
+    {
+        local_render_size[0] = 0;
+        local_render_size[1] = 0;
+    }
+    if (local_render_size[1] < 0)
+    {
+        local_render_size[0] = 0;
+        local_render_size[1] = 0;
+    }
+    if (local_render_offset[0] < 0)
+    {
+        local_render_offset[0] = 0;
+    }
+    if (local_render_offset[1] < 0)
+    {
+        local_render_offset[1] = 0;
+    }
+}
+
+void Init(int rank, GLFWwindow *window, Screen &screen, int32_t *local_render_size, int32_t *local_render_offset, GShaderProgram *shader, GLuint *vao, GLuint *tex_id)
 {
     int w, h;
-    glClearColor(0.0, 0.0, 1.0, 1.0);
+    glClearColor(0.0, 0.0, 0.0, 1.0);
     glEnable(GL_DEPTH_TEST);
     glfwGetFramebufferSize(window, &w, &h);
     glViewport(0, 0, w, h);
-    printf("OpenGL: %s\n", glGetString(GL_VERSION));
+    if (rank == 0) printf("[PxClient] OpenGL: %s\n", glGetString(GL_VERSION));
 
     *shader = CreateTextureShader();
     *vao = CreateRectangleVao();
 
-    GLubyte blank[4] = {255, 255, 0, 255};
+    GLubyte blank[4] = {53, 188, 0, 255};
     glGenTextures(1, tex_id);
     glBindTexture(GL_TEXTURE_2D, *tex_id);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -498,8 +627,9 @@ void Init(GLFWwindow *window, Screen &screen, GShaderProgram *shader, GLuint *va
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, blank);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    mat_projection = glm::ortho(0.0, (double)w, (double)h, 0.0, 1.0, -1.0);
-    mat_modelview = glm::scale(glm::mat4(1.0), glm::vec3(w, h, 1.0));
+    mat_projection = glm::ortho(0.0, (double)screen.width, (double)screen.height, 0.0, 1.0, -1.0);
+    mat_modelview = glm::translate(glm::mat4(1.0), glm::vec3(local_render_offset[0], local_render_offset[1], 0.0));
+    mat_modelview = glm::scale(mat_modelview, glm::vec3(local_render_size[0], local_render_size[1], 1.0));
 
     Render(window, *shader, *vao, *tex_id);
 }

@@ -9,7 +9,7 @@ OPENSSL_DIR=/usr/local/opt/openssl
 DDR_DIR= $(HOME)/Dev/ddr
 
 # HPC STREAM LIBRARY
-INC= -I${NETSOCKET_DIR}/include -I$(OPENSSL_DIR)/include -I./include
+INC= -I${NETSOCKET_DIR}/include -I$(OPENSSL_DIR)/include -I$(DDR_DIR)/include -I./include
 SRCDIR= src
 OBJDIR= obj
 LIBDIR= lib
@@ -26,7 +26,7 @@ TEST_OBJS_S= $(addprefix $(TEST_OBJDIR_S)/, pxserver.o)
 TEST_S= $(addprefix $(BINDIR)/, pxserver)
 
 # PX STREAM CLIENT
-TEST_INC_C= -I${NETSOCKET_DIR}/include -I$(OPENSSL_DIR)/include -I$(DDR_DIR)/include -I./include
+TEST_INC_C= -I${NETSOCKET_DIR}/include -I$(OPENSSL_DIR)/include -I$(DDR_DIR)/include -I./include -I./example/include
 TEST_LIB_C= -L${NETSOCKET_DIR}/lib -L${DDR_DIR}/lib -L./lib -lnetsocket -lddr -lssl -lcrypto -lglfw -lglad -lhpcstream
 TEST_SRCDIR_C= example/src/client
 TEST_OBJDIR_C= obj/client

@@ -1,0 +1,24 @@
+// laptop configuration with 2 windows
+{
+    name: "laptop2",
+    screen: {
+        resolution: {
+            width: 1600,
+            height: 900
+        },
+        displays: [
+            {
+                x: 0,
+                y: 0,
+                width: 800,
+                height: 900
+            },
+            {
+                x: 800,
+                y: 0,
+                width: 800,
+                height: 900
+            }
+        ]
+    }
+}

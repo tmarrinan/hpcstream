@@ -148,7 +148,7 @@ void HpcStream::Server::SetValue(std::string name, void *value)
         return;
     }
     memcpy(_vars[name].val, value, _vars[name].size * _vars[name].length);
-    if (_vars[name].dims == 1 && _vars[name].length == 1 && _vars[name].type == DataType::ArraySize)
+    if (_vars[name].dims == 1 && _vars[name].length == 1 && _vars[name].type == HpcStream::DataType::ArraySize)
     {
         int i;
         for (auto& x : _vars)

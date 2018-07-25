@@ -23,7 +23,7 @@ uint32_t HpcStream::GetDataTypeSize(DataType type)
         case DataType::Uint64:
         case DataType::Double:
             size = 8;
-            break; 
+            break;
     }
     return size;
 }

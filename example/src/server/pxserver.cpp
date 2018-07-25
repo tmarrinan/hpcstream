@@ -48,7 +48,7 @@ int main(int argc, char **argv)
     if (argc >= 4) increment = atoi(argv[3]);
     std::vector<std::string> frame_list;
     GetFrameList(rank, argv[1], start, increment, &frame_list);
-    if (rank == 0) printf("Found %d images to stream\n", frame_list.size());
+    if (rank == 0) printf("[PxServer] Found %d images to stream\n", frame_list.size());
 
     // split into grid
     int rows;
@@ -75,7 +75,7 @@ int main(int argc, char **argv)
     send_img.data = stbi_load_from_memory(compressed_images[0].data, compressed_images[0].length, &w, &h, &c, STBI_rgb_alpha);
     send_img.width = w;
     send_img.height = h;
-    if (rank == 0) printf("Image load complete (%dx%d)\n", w, h);
+    if (rank == 0) printf("[PxServer] Image load complete (%dx%d)\n", w, h);
 
     // initialize HpcStream
     uint32_t global_width = w * cols;
@@ -105,7 +105,8 @@ int main(int argc, char **argv)
     stream.SetValue("local_offsety", &(local_offset[1]));
 
     // stream loop
-    if (rank == 0) printf("Begin stream loop\n");
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (rank == 0) printf("[PxServer] Begin stream loop\n");
     for (i = 0; i <frame_list.size(); i++)
     {
         stream.SetValue("time_step", &i);

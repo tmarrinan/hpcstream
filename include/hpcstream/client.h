@@ -6,6 +6,9 @@
 #include <vector>
 #include <map>
 #include <mpi.h>
+extern "C" {
+#include <ddr.h>
+}
 #include <netsocket/client.h>
 #include "hpcstream.h"
 
@@ -37,8 +40,19 @@ private:
     std::vector<Connection> _connections;
 
 public:
+    typedef struct GlobalSelection {
+        std::string var_name;
+        DDR_DataDescriptor *desc;
+    } GlobalSelection;
+
     Client(const char *iface, uint16_t port, MPI_Comm comm);
     ~Client();
+
+    void Read();
+    void ReleaseTimeStep();
+    void GetGlobalSizeForVariable(std::string var_name, uint32_t *size);
+    GlobalSelection CreateGlobalArraySelection(std::string var_name, int32_t *sizes, int32_t *offsets);
+    void FillSelection(GlobalSelection& selection, void *data);
 };
 
 #endif // __HPCSTREAM_CLIENT_H_
