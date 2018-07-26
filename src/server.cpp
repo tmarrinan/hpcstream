@@ -343,7 +343,7 @@ void HpcStream::Server::GenerateVarsBuffer()
         uint32_t net_size = htonl(x.second.size);
         memcpy(_vars_buffer + vars_offset, &net_size, sizeof(uint32_t));
         vars_offset += sizeof(uint32_t);
-        int64_t net_length = htonll(x.second.length);
+        int64_t net_length = HpcStream::HToNLL(x.second.length);
         memcpy(_vars_buffer + vars_offset, &net_length, sizeof(int64_t));
         vars_offset += sizeof(int64_t);
         if (x.second.length == 0)
@@ -414,7 +414,7 @@ bool HpcStream::Server::HandleNewConnection(NetSocket::Server::Event& event)
                 if (event.data_length == 21 && ntohl(*((uint32_t*)event.binary_data)) == _num_ranks)
                 {
                     // store client data
-                    _connections[event_client_id].id = ntohll(*((uint64_t*)((uint32_t*)event.binary_data + 1)));
+                    _connections[event_client_id].id = HpcStream::NToHLL(*((uint64_t*)((uint32_t*)event.binary_data + 1)));
                     _connections[event_client_id].remote_rank = ntohl(*((uint32_t*)event.binary_data + 3));
                     _connections[event_client_id].num_remote_ranks = ntohl(*((uint32_t*)event.binary_data + 4));
                     _connections[event_client_id].has_same_endianness = ((uint8_t*)event.binary_data)[20] == _endianness;

@@ -27,3 +27,22 @@ uint32_t HpcStream::GetDataTypeSize(DataType type)
     }
     return size;
 }
+
+uint64_t HpcStream::HToNLL(uint64_t val)
+{
+#if __BYTE_ORDER == __BIG_ENDIAN
+    return val; 
+#else
+    return (((uint64_t)htonl(val)) << 32) + (uint64_t)htonl(val >> 32);
+#endif
+}
+
+uint64_t HpcStream::NToHLL(uint64_t val)
+{
+#if __BYTE_ORDER == __BIG_ENDIAN
+    return val;
+#else
+    return (((uint64_t)ntohl(val) >> 32) + (uint64_t)ntohl(val) << 32);
+#endif
+}
+

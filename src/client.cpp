@@ -159,7 +159,7 @@ HpcStream::Client::Client(const char *host, uint16_t port, MPI_Comm comm)
                         vars_offset += sizeof(uint8_t);
                         v.size = ntohl(*((uint32_t*)(data + vars_offset)));
                         vars_offset += sizeof(uint32_t);
-                        v.length = ntohll(*((int64_t*)(data + vars_offset)));
+                        v.length = HpcStream::NToHLL(*((int64_t*)(data + vars_offset)));
                         vars_offset += sizeof(int64_t);
                         if (v.length == 0)
                         {
