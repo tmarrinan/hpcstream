@@ -4,9 +4,9 @@ MPICXX_FLAGS= -std=c++11 -DASIO_STANDALONE -D_VARIADIC_MAX=10 -w
 LIBCXX= ar
 LIBCXX_FLAGS= rcs
 
-NETSOCKET_DIR= /projects/visualization/marrinan/local
-#OPENSSL_DIR=/usr/local/opt/openssl
-DDR_DIR= /home/marrinan/ddr
+NETSOCKET_DIR= $(HOME)/local
+OPENSSL_DIR=/usr/local/opt/openssl
+DDR_DIR= $(HOME)/Dev/ddr
 
 # HPC STREAM LIBRARY
 INC= -I${NETSOCKET_DIR}/include -I$(OPENSSL_DIR)/include -I$(DDR_DIR)/include -I./include
@@ -27,7 +27,7 @@ TEST_S= $(addprefix $(BINDIR)/, pxserver)
 
 # PX STREAM CLIENT
 TEST_INC_C= -I${NETSOCKET_DIR}/include -I$(OPENSSL_DIR)/include -I$(DDR_DIR)/include -I./include -I./example/include
-TEST_LIB_C= -L${NETSOCKET_DIR}/lib -L${DDR_DIR}/lib -L./lib -lnetsocket -lddr -lssl -lcrypto -lglfw -lglad -lpthread -lhpcstream
+TEST_LIB_C= -L${NETSOCKET_DIR}/lib -L${DDR_DIR}/lib -L./lib -lnetsocket -ldl -lssl -lcrypto -lglfw -lglad -lpthread -lhpcstream -lddr
 TEST_SRCDIR_C= example/src/client
 TEST_OBJDIR_C= obj/client
 TEST_OBJS_C= $(addprefix $(TEST_OBJDIR_C)/, pxclient.o)

@@ -33,7 +33,19 @@ uint64_t HpcStream::HToNLL(uint64_t val)
 #if __BYTE_ORDER == __BIG_ENDIAN
     return val; 
 #else
-    return (((uint64_t)htonl(val)) << 32) + (uint64_t)htonl(val >> 32);
+    uint64_t rval;
+    uint8_t *data = (uint8_t *)&rval;
+
+    data[0] = val >> 56;
+    data[1] = val >> 48;
+    data[2] = val >> 40;
+    data[3] = val >> 32;
+    data[4] = val >> 24;
+    data[5] = val >> 16;
+    data[6] = val >> 8;
+    data[7] = val >> 0;
+
+    return rval;
 #endif
 }
 
@@ -42,7 +54,19 @@ uint64_t HpcStream::NToHLL(uint64_t val)
 #if __BYTE_ORDER == __BIG_ENDIAN
     return val;
 #else
-    return (((uint64_t)ntohl(val) >> 32) + (uint64_t)ntohl(val) << 32);
+    uint64_t rval;
+    uint8_t *data = (uint8_t *)&rval;
+
+    data[0] = val >> 56;
+    data[1] = val >> 48;
+    data[2] = val >> 40;
+    data[3] = val >> 32;
+    data[4] = val >> 24;
+    data[5] = val >> 16;
+    data[6] = val >> 8;
+    data[7] = val >> 0;
+
+    return rval;
 #endif
 }
 
