@@ -117,11 +117,8 @@ HpcStream::Client::Client(const char *host, uint16_t port, MPI_Comm comm)
         uint32_t *info_ranks = (uint32_t*)info_received + 4;
         *info_remote_ranks = htonl(_num_remote_ranks);
         struct in_addr ip;
-        uint16_t port;
         inet_aton(_connections[0].client->LocalIpAddress().c_str(), &ip);
-        port = htons(_connections[0].client->LocalPort());
-        memcpy(info_id, &ip, 4);
-        memcpy(info_id + 4, &port, 2);
+        *info_id = HpcStream::HToNLL(((uint64_t)ip.s_addr << 32) + (uint64_t)_connections[0].client->LocalPort());
         *info_ranks = htonl(_num_ranks);
     }
     MPI_Bcast(info_received, 21, MPI_UINT8_T, 0, MPI_COMM_WORLD);
