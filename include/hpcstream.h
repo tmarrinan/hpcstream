@@ -4,6 +4,12 @@
 #include <iostream>
 #include <arpa/inet.h>
 
+#ifdef __APPLE__
+#define __BYTE_ORDER __BYTE_ORDER__
+#define __BIG_ENDIAN BIG_ENDIAN
+#define __LITTLE_ENDIAN LITTLE_ENDIAN
+#endif
+
 #define HPCSTREAM_FLOATTEST 1.9961090087890625e2 // IEEE 754 ==> 0x4068F38C80000000
 #define HPCSTREAM_FLOATBINARY 0x4068F38C80000000LL
 
