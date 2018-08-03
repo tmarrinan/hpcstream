@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cstdlib>
 #include <vector>
 #include <numeric>
 #include <mpi.h>
@@ -15,6 +16,7 @@
 typedef struct Screen {
     int width;
     int height;
+    int monitor;
     char title[96];
 } Screen;
 typedef struct GShaderProgram {
@@ -98,18 +100,47 @@ int main(int argc, char **argv)
         exit(1);
     }
 
+    // retrieve monitors
+    int i, j, count, xpos1, xpos2, ypos1, ypos2;
+    GLFWmonitor **monitors = glfwGetMonitors(&count);
+    for (i = 0; i < count - 1; i++)
+    {
+        for (j = i + 1; j < count; j++)
+        {
+            glfwGetMonitorPos(monitors[j - 1], &xpos1, &ypos1);
+            glfwGetMonitorPos(monitors[j], &xpos2, &ypos2);
+            if (ypos2 < ypos1 || (ypos2 == ypos1 && xpos2 < xpos1))
+            {
+                GLFWmonitor *tmp_m = monitors[j];
+                monitors[j] = monitors[j - 1];
+                monitors[j - 1] = tmp_m;
+            }
+        }
+    }
+
     // define screen properties
     Screen screen;
     screen.width = display["width"];
     screen.height = display["height"];
+    screen.monitor = display["location"]["monitor"];
     strcpy(screen.title, (std::string("PxStream Client: ") + std::to_string(rank)).c_str());
+    if (display["location"].hasProperty("x-display"))
+    {
+        setenv("DISPLAY", ((std::string)(display["location"]["x-display"])).c_str(), true);
+    }
 
     // create a window and its OpenGL context
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
     GLFWwindow *window = glfwCreateWindow(screen.width, screen.height, screen.title, NULL, NULL);
+    glfwGetMonitorPos(monitors[screen.monitor], &xpos1, &ypos1);
+    glfwSetWindowPos(window, xpos1 + (int)display["location"]["x"], ypos1 + (int)display["location"]["y"]);
+    glfwShowWindow(window);
 
     // make window's context current
     glfwMakeContextCurrent(window);

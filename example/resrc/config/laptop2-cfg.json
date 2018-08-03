@@ -11,13 +11,23 @@
                 x: 0,
                 y: 0,
                 width: 800,
-                height: 900
+                height: 900,
+                location: {
+                    monitor: 0,
+                    x: 0,
+                    y: 0
+                }
             },
             {
                 x: 800,
                 y: 0,
                 width: 800,
-                height: 900
+                height: 900,
+                location: {
+                    monitor: 0,
+                    x: 800,
+                    y: 0
+                }
             }
         ]
     }

@@ -94,7 +94,9 @@ int main(int argc, char **argv)
     stream.DefineVar("local_height",  HpcStream::DataType::ArraySize, "", "", "");
     stream.DefineVar("local_offsetx", HpcStream::DataType::ArraySize, "", "", "");
     stream.DefineVar("local_offsety", HpcStream::DataType::ArraySize, "", "", "");
-    stream.DefineVar("pixels",        HpcStream::DataType::Uint8,     "global_width,global_height", "local_width,local_height", "local_offsetx,local_offsety"); 
+    stream.DefineVar("pixels",        HpcStream::DataType::Uint8,     "global_width,global_height", "local_width,local_height", "local_offsetx,local_offsety");
+    MPI_Barrier(MPI_COMM_WORLD);
+    if (rank == 0) printf("[PxServer] Ready for client connections\n");
     stream.VarDefinitionsComplete(HpcStream::Server::StreamBehavior::WaitForAll, 1);
 
     stream.SetValue("global_width", &(global_dim[0]));
