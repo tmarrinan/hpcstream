@@ -6,6 +6,8 @@
 #include <sstream>
 #include <vector>
 #include <map>
+#include <algorithm>
+#include <random>
 #include <ifaddrs.h>
 #include <mpi.h>
 #include <netsocket/server.h>
@@ -63,9 +65,11 @@ private:
     std::vector<std::string> ParseVarCounts(std::string counts);
 
 public:
-    Server(const char *iface, uint16_t port, MPI_Comm comm);
+    Server(const char *iface, uint16_t port_min, uint16_t port_max, MPI_Comm comm);
     ~Server();
 
+    char* GetMasterIpAddress();
+    uint16_t GetMasterPort();
     void DefineVar(std::string name, HpcStream::DataType base_type, std::string global_size, std::string local_size, std::string local_offset);
     void VarDefinitionsComplete(StreamBehavior behavior, int initial_wait_count);
     void SetValue(std::string name, void *value);

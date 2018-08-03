@@ -82,11 +82,12 @@ int main(int argc, char **argv)
     uint32_t global_height = h * rows;
 
 
-    uint16_t port = 8000 + rank;
+    uint16_t port_min = 8000;
+    uint16_t port_max = 8008;
     uint32_t global_dim[2] = {global_width * 4, global_height};
     uint32_t local_dim[2] = {static_cast<uint32_t>(w) * 4, static_cast<uint32_t>(h)};
     uint32_t local_offset[2] = {m_col * w * 4, m_row * h};
-    HpcStream::Server stream("lo0", port, MPI_COMM_WORLD);
+    HpcStream::Server stream("lo0", port_min, port_max, MPI_COMM_WORLD);
     stream.DefineVar("time_step",     HpcStream::DataType::Uint32,    "", "", "");
     stream.DefineVar("global_width",  HpcStream::DataType::ArraySize, "", "", "");
     stream.DefineVar("global_height", HpcStream::DataType::ArraySize, "", "", "");
@@ -96,7 +97,7 @@ int main(int argc, char **argv)
     stream.DefineVar("local_offsety", HpcStream::DataType::ArraySize, "", "", "");
     stream.DefineVar("pixels",        HpcStream::DataType::Uint8,     "global_width,global_height", "local_width,local_height", "local_offsetx,local_offsety");
     MPI_Barrier(MPI_COMM_WORLD);
-    if (rank == 0) printf("[PxServer] Ready for client connections\n");
+    if (rank == 0) printf("[PxServer] Ready for client connections on %s:%u\n", stream.GetMasterIpAddress(), stream.GetMasterPort());
     stream.VarDefinitionsComplete(HpcStream::Server::StreamBehavior::WaitForAll, 1);
 
     stream.SetValue("global_width", &(global_dim[0]));

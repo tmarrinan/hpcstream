@@ -1,7 +1,6 @@
 #include "hpcstream/server.h"
 
-HpcStream::Server::Server(const char *iface, uint16_t port, MPI_Comm comm) :
-    _port(port),
+HpcStream::Server::Server(const char *iface, uint16_t port_min, uint16_t port_max, MPI_Comm comm) :
     _num_connections(0),
     _ip_address_list(NULL),
     _port_list(NULL),
@@ -14,9 +13,37 @@ HpcStream::Server::Server(const char *iface, uint16_t port, MPI_Comm comm) :
         fprintf(stderr, "Error obtaining MPI task ID information\n");
     }
 
+    NetSocket::ServerOptions options = NetSocket::CreateServerOptions();
+    int i;
+    int num_ports = port_max - port_min + 1;
+    uint16_t *port_options = new uint16_t[num_ports];
+    for (i = 0; i < num_ports; i++)
+    {
+        port_options[i] = port_min + i;
+    }
+    std::shuffle(port_options, port_options + num_ports, std::default_random_engine(time(0)));
+    i = 0;
+    _port = port_options[0];
+    bool address_in_use = true;
+    while (address_in_use && _port <= port_max)
+    {
+        try
+        {
+            _server = new NetSocket::Server(_port, options);
+            address_in_use = false;
+        }
+        catch (std::exception& e)
+        {
+            i++;
+            _port = port_options[i];
+        }
+    }
+    delete[] port_options;
+    printf("[rank %d] port: %u\n", _rank, _port);
+
     uint8_t ip_address[4];
     GetIpAddress(iface, ip_address);
-    uint16_t net_port = htons(port);
+    uint16_t net_port = htons(_port);
     if (_rank == 0)
     {
         _ip_address_list = new uint8_t[4 * _num_ranks];
@@ -47,6 +74,36 @@ HpcStream::Server::Server(const char *iface, uint16_t port, MPI_Comm comm) :
 HpcStream::Server::~Server()
 {
     // TODO: stop server
+}
+
+char* HpcStream::Server::GetMasterIpAddress()
+{
+    char *addr;
+    if (_rank == 0)
+    {
+        struct in_addr ip;
+        ip.s_addr = _ip_address_list[0];
+        addr = inet_ntoa(ip);
+    }
+    else
+    {
+        addr = "";
+    }
+    return addr;
+}
+
+uint16_t HpcStream::Server::GetMasterPort()
+{
+    uint16_t port;
+    if (_rank == 0)
+    {
+        port = ntohs(_port_list[0]);
+    }
+    else
+    {
+        port = 0;
+    }
+    return port;
 }
 
 void HpcStream::Server::DefineVar(std::string name, HpcStream::DataType base_type, std::string global_size, std::string local_size, std::string local_offset)
@@ -119,9 +176,6 @@ void HpcStream::Server::VarDefinitionsComplete(StreamBehavior behavior, int init
 {
     _stream_behavior = behavior;
     GenerateVarsBuffer();
-
-    NetSocket::ServerOptions options = NetSocket::CreateServerOptions();
-    _server = new NetSocket::Server(_port, options);
 
     while (_num_connections < initial_wait_count)
     {
