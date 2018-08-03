@@ -62,6 +62,10 @@ int main(int argc, char **argv)
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
     jsvar display = config["screen"]["displays"][rank];
+    if (display["location"].hasProperty("xdisplay"))
+    {
+        setenv("DISPLAY", ((std::string)(display["location"]["xdisplay"])).c_str(), true);
+    }
 
     // HpcStream clients
     if (argc < 3)
@@ -123,11 +127,12 @@ int main(int argc, char **argv)
     screen.width = display["width"];
     screen.height = display["height"];
     screen.monitor = display["location"]["monitor"];
-    strcpy(screen.title, (std::string("PxStream Client: ") + std::to_string(rank)).c_str());
-    if (display["location"].hasProperty("x-display"))
+    if (screen.monitor < 0 || screen.monitor >= count)
     {
-        setenv("DISPLAY", ((std::string)(display["location"]["x-display"])).c_str(), true);
+        fprintf(stderr, "[rank %d] Error: cannot use monitor %d. Valid monitors are 0-%d. Using default monitor 0 instead.\n", rank, screen.monitor, count - 1);
+        screen.monitor = 0;
     }
+    strcpy(screen.title, (std::string("PxStream Client: ") + std::to_string(rank)).c_str());
 
     // create a window and its OpenGL context
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
