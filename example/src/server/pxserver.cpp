@@ -44,8 +44,10 @@ int main(int argc, char **argv)
     }
     int start = 0;
     int increment = 1;
+    bool predecompress = false;
     if (argc >= 3) start = atoi(argv[2]);
     if (argc >= 4) increment = atoi(argv[3]);
+    if (argc >= 5) predecompress = strcmp(argv[4], "0") != 0;
     std::vector<std::string> frame_list;
     GetFrameList(rank, argv[1], start, increment, &frame_list);
     if (rank == 0) printf("[PxServer] Found %d images to stream\n", frame_list.size());
@@ -59,22 +61,37 @@ int main(int argc, char **argv)
 
 
     // read images into memory
-    int i;
+    int i, w, h, c;
     char *img_data;
     int32_t img_len;
     std::vector<CompressedImageData> compressed_images;
+    std::vector<ImageData> decompressed_images;
     for (i = 0; i < frame_list.size(); i++)
     {
         img_len = ReadFile(frame_list[i].c_str(), &img_data);
         compressed_images.push_back({reinterpret_cast<unsigned char*>(img_data), img_len});
+        if (predecompress)
+        {
+            ImageData decompressed_img;
+            decompressed_img.data = stbi_load_from_memory(compressed_images[i].data, compressed_images[i].length, &w, &h, &c, STBI_rgb_alpha);
+            decompressed_img.width = w;
+            decompressed_img.height = h;
+            decompressed_images.push_back(decompressed_img);
+        }
     }
 
     // decompress first image
-    int w, h, c;
     ImageData send_img;
-    send_img.data = stbi_load_from_memory(compressed_images[0].data, compressed_images[0].length, &w, &h, &c, STBI_rgb_alpha);
-    send_img.width = w;
-    send_img.height = h;
+    if (predecompress)
+    {
+        send_img = decompressed_images[0];
+    }
+    else
+    {
+        send_img.data = stbi_load_from_memory(compressed_images[0].data, compressed_images[0].length, &w, &h, &c, STBI_rgb_alpha);
+        send_img.width = w;
+        send_img.height = h;
+    }
     if (rank == 0) printf("[PxServer] Image load complete (%dx%d)\n", w, h);
 
     // initialize HpcStream
@@ -110,15 +127,25 @@ int main(int argc, char **argv)
     // stream loop
     MPI_Barrier(MPI_COMM_WORLD);
     if (rank == 0) printf("[PxServer] Begin stream loop\n");
-    for (i = 0; i <frame_list.size(); i++)
+    for (i = 0; i < frame_list.size(); i++)
     {
         stream.SetValue("time_step", &i);
         stream.SetValue("pixels", send_img.data);
         stream.Write();
 
-        send_img.data = stbi_load_from_memory(compressed_images[i].data, compressed_images[i].length, &w, &h, &c, STBI_rgb_alpha);
-        send_img.width = w;
-        send_img.height = h;
+        if (i + 1 < frame_list.size())
+        {
+            if (predecompress)
+            {
+                send_img = decompressed_images[i + 1];
+            }
+            else
+            {
+                send_img.data = stbi_load_from_memory(compressed_images[i + 1].data, compressed_images[i + 1].length, &w, &h, &c, STBI_rgb_alpha);
+                send_img.width = w;
+                send_img.height = h;
+            }
+        }
 
         stream.AdvanceTimeStep();
     }
