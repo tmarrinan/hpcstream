@@ -220,6 +220,22 @@ void HpcStream::Client::Read()
     bool *receive_data = new bool[num_connections];
     memset(receive_data, 0, num_connections * sizeof(bool));
     bool all_received = false;
+
+    std::thread *read_threads = new std::thread[num_connections];
+    for (i = 0; i < num_connections; i++)
+    {
+        read_threads[i] = std::thread(&HpcStream::Client::ConnectionRead, this, i); 
+    }
+
+    for (i = 0; i < num_connections; i++)
+    {
+        read_threads[i].join(); 
+    }
+
+    delete[] read_threads;
+
+
+    /*
     while (!all_received)
     {
         for (i = 0; i < num_connections; i++)
@@ -286,8 +302,73 @@ void HpcStream::Client::Read()
             all_received = true;
         }
     }
+    */
 
     delete[] receive_data;
+}
+
+void HpcStream::Client::ConnectionRead(int connection_idx)
+{
+    int i;
+    bool receive_data = false;
+    while (!receive_data)
+    {
+        NetSocket::Client::Event event;
+        do
+        {
+            event = _connections[connection_idx].client->WaitForNextEvent();
+        } while (event.type != NetSocket::Client::EventType::ReceiveBinary);
+        
+        if (event.data_length > 4) // variable value
+        {
+            uint32_t name_len = *((uint32_t*)event.binary_data);
+            std::string name = std::string((char*)event.binary_data + sizeof(uint32_t), name_len);
+            int offset = sizeof(uint32_t) + name_len;
+            memcpy(_connections[connection_idx].vars[name].val, (uint8_t*)event.binary_data + offset, event.data_length - offset);
+            // if array size, copy value to respective arrays
+            if (_connections[connection_idx].vars[name].dims == 1 && _connections[connection_idx].vars[name].length == 1 
+                && _connections[connection_idx].vars[name].type == HpcStream::DataType::ArraySize)
+            {
+                for (auto& x : _connections[connection_idx].vars)
+                {
+                    uint32_t pos = find(x.second.gs_vars.begin(), x.second.gs_vars.end(), name) - x.second.gs_vars.begin();
+                    if (pos < x.second.gs_vars.size())
+                    {
+                        x.second.g_size[pos] = *((uint32_t*)_connections[connection_idx].vars[name].val);
+                    }
+                    pos = find(x.second.ls_vars.begin(), x.second.ls_vars.end(), name) - x.second.ls_vars.begin();
+                    if (pos < x.second.ls_vars.size())
+                    {
+                        x.second.l_size[pos] = *((uint32_t*)_connections[connection_idx].vars[name].val);
+                        // allocate local value array if all local sizes are non-zero
+                        bool non_zero = true;
+                        uint32_t length = 1;
+                        for (i = 0; i < x.second.dims; i++)
+                        {
+                            non_zero &= x.second.l_size[i] != 0;
+                            length *= x.second.l_size[i];
+                        }
+                        if (non_zero)
+                        {
+                            if (x.second.val != NULL) delete[] x.second.val;
+                            x.second.length = length;
+                            x.second.val = new uint8_t[x.second.size * x.second.length];
+                        }
+                    }
+                    pos = find(x.second.lo_vars.begin(), x.second.lo_vars.end(), name) - x.second.lo_vars.begin();
+                    if (pos < x.second.lo_vars.size())
+                    {
+                        x.second.l_offset[pos] = *((uint32_t*)_connections[connection_idx].vars[name].val);
+                    }
+                }
+            }
+        }
+        else if (event.data_length == 1 && *((uint8_t*)event.binary_data) == 255) // end notification
+        {
+            receive_data = true;
+        }
+        delete[] event.binary_data;
+    }
 }
 
 void HpcStream::Client::ReleaseTimeStep()

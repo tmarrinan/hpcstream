@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <thread>
 #include <mpi.h>
 extern "C" {
 #include <ddr.h>
@@ -38,6 +39,8 @@ private:
     MPI_Comm _comm;
     HpcStream::Endian _endianness;
     std::vector<Connection> _connections;
+
+    void ConnectionRead(int connection_idx);
 
 public:
     typedef struct GlobalSelection {
