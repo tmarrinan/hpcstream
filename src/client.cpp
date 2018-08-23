@@ -29,6 +29,7 @@ HpcStream::Client::Client(const char *host, uint16_t port, MPI_Comm comm)
 
     // netsocket client connections
     NetSocket::ClientOptions options = NetSocket::CreateClientOptions();
+    options.flags |= NetSocket::GeneralFlags::TcpNoDelay;
     options.secure = false;
     // rank 0 receives host/port info for all other ranks
     int i;

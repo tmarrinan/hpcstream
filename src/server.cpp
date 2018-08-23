@@ -14,6 +14,7 @@ HpcStream::Server::Server(const char *iface, uint16_t port_min, uint16_t port_ma
     }
 
     NetSocket::ServerOptions options = NetSocket::CreateServerOptions();
+    options.flags |= NetSocket::GeneralFlags::TcpNoDelay;
     int i;
     int num_ports = port_max - port_min + 1;
     uint16_t *port_options = new uint16_t[num_ports];
