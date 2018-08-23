@@ -199,7 +199,14 @@ void HpcStream::Server::SetValue(std::string name, void *value)
         fprintf(stderr, "[HpcStream] Error: cannot set value without initializing sizes\n");
         return;
     }
-    memcpy(_vars[name].val, value, _vars[name].size * _vars[name].length);
+    if (_vars[name].gs_vars.size() == 0) // non-array
+    {
+        memcpy(_vars[name].val, value, _vars[name].size * _vars[name].length);
+    }
+    else
+    {
+        _vars[name].val = (uint8_t*)value;
+    }
     if (_vars[name].dims == 1 && _vars[name].length == 1 && _vars[name].type == HpcStream::DataType::ArraySize)
     {
         int i;
@@ -223,9 +230,9 @@ void HpcStream::Server::SetValue(std::string name, void *value)
                 }
                 if (non_zero)
                 {
-                    if (x.second.val != NULL) delete[] x.second.val;
+                    //if (x.second.val != NULL) delete[] x.second.val;
                     x.second.length = length;
-                    x.second.val = new uint8_t[x.second.size * x.second.length];
+                    //x.second.val = new uint8_t[x.second.size * x.second.length];
                 }
             }
             pos = find(x.second.lo_vars.begin(), x.second.lo_vars.end(), name) - x.second.lo_vars.begin();
@@ -280,7 +287,8 @@ void HpcStream::Server::Write()
             {
                 if (c.second.is_new || x.second.updated)
                 {
-                    c.second.client->Send(send_buffer, send_size, NetSocket::CopyMode::MemCopy);
+                    //c.second.client->Send(send_buffer, send_size, NetSocket::CopyMode::MemCopy);
+                    c.second.client->Send(send_buffer, send_size, NetSocket::CopyMode::ZeroCopy);
                 }
             }
             delete[] send_buffer;
