@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <vector>
 #include <numeric>
+#include <chrono>
 #include <mpi.h>
 #include <ddr.h>
 #include <glad/glad.h>
@@ -77,6 +78,8 @@ int main(int argc, char **argv)
     printf("[rank %d] HpcStream connected\n", rank);
     
     // read first time step
+    uint64_t stream_start_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    uint64_t start_time = stream_start_time;
     stream.Read();
     uint32_t px_size[2];
     stream.GetGlobalSizeForVariable("pixels", px_size);
@@ -89,8 +92,6 @@ int main(int argc, char **argv)
     int32_t local_render_size[2];
     int32_t local_render_offset[2];
     GetLocalPixelLocations(rank, config, px_size, local_px_size, local_px_offset, local_render_size, local_render_offset);
-    printf("[rank %d] local px size: %ux%u, local px offset: %u %u\n", rank, local_px_size[0], local_px_size[1], local_px_offset[0], local_px_offset[1]);
-    printf("[rank %d] local render size: %ux%u, local render offset: %u %u\n", rank, local_render_size[0], local_render_size[1], local_render_offset[0], local_render_offset[1]);
     int32_t px_rgba_size[2] = {local_px_size[0] * 4, local_px_size[1]};
     int32_t px_rgba_offset[2] = {local_px_offset[0] * 4, local_px_offset[1]};
     printf("[rank %d] rgba %dx%d\n", rank, px_rgba_size[0], px_rgba_size[1]);
@@ -162,6 +163,8 @@ int main(int argc, char **argv)
     GLuint vao;
     GLuint tex_id;
     Init(rank, window, screen, local_render_size, local_render_offset,  &shader, &vao, &tex_id);
+    int total_stream_count = 1;
+    int stream_count = 1;
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -174,6 +177,27 @@ int main(int argc, char **argv)
         Render(window, shader, vao, tex_id);
 
         stream.ReleaseTimeStep();
+
+        if (stream_count == 16)
+        {
+            stream_count = 0;
+            uint64_t stop_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+            double elapsed_time[2] = {(double)(stop_time - start_time) / 1000.0, (double)(stop_time - stream_start_time) / 1000.0};
+            double max_elapsed[2];
+            MPI_Reduce(&elapsed_time, &max_elapsed, 2, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+            if (rank == 0)
+            {
+                double recent_fps = 16.0 / max_elapsed[0];
+                double recent_mbps = ((double)((uint64_t)px_size[0] * (uint64_t)px_size[1] * 4ULL * 8ULL * 16ULL) / (1024.0 * 1024.0)) / max_elapsed[0];
+                double overall_fps = (double)total_stream_count / max_elapsed[1];
+                double overall_mbps = ((double)((uint64_t)px_size[0] * (uint64_t)px_size[1] * 4ULL * 8ULL * (uint64_t)total_stream_count) / (1024.0 * 1024.0)) / max_elapsed[1];
+                printf("[PxClient] last 16 frames: %.3lf fps / %.3lf mbps, overall: %.3lf fps / %.3lf mbps\n", recent_fps, recent_mbps, overall_fps, overall_mbps);
+            }
+            start_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        }
+        total_stream_count++;
+        stream_count++;
+
         stream.Read();
     }
 

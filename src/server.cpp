@@ -39,7 +39,6 @@ HpcStream::Server::Server(const char *iface, uint16_t port_min, uint16_t port_ma
         }
     }
     delete[] port_options;
-    printf("[rank %d] port: %u\n", _rank, _port);
 
     uint8_t ip_address[4];
     GetIpAddress(iface, ip_address);
@@ -81,8 +80,7 @@ char* HpcStream::Server::GetMasterIpAddress()
     char *addr;
     if (_rank == 0)
     {
-        struct in_addr ip;
-        ip.s_addr = _ip_address_list[0];
+        struct in_addr ip = {*((in_addr_t*)(_ip_address_list))};
         addr = inet_ntoa(ip);
     }
     else

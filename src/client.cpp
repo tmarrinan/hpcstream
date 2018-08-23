@@ -383,16 +383,12 @@ HpcStream::Client::GlobalSelection HpcStream::Client::CreateGlobalArraySelection
     int *offsets_own = new int[chunks_own * dims];
     for (i = 0; i < _connections.size(); i++)
     {
-        printf("[rank %d] c %d: ", _rank, i);
         for (j = 0; j < dims; j++)
         {
             dims_own[i * dims + j] = _connections[i].vars[var_name].l_size[j];
             offsets_own[i * dims + j] = _connections[i].vars[var_name].l_offset[j];
-            printf("d %d o %d (%d)  ", dims_own[i * dims + j], offsets_own[i * dims + j], i * dims + j);
         }
-        printf("\n");
     }
-    printf("[rank %d] want: sizes %dx%d, offsets %d %d\n", _rank, sizes[0], sizes[1], offsets[0], offsets[1]);
 
     DDR_SetupDataMapping(_rank, _num_ranks, chunks_own, dims_own, offsets_own, sizes, offsets, selection.desc);
 
