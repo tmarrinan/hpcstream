@@ -28,6 +28,7 @@ private:
         uint32_t *g_size;                 // array of global array sizes
         uint32_t *l_size;                 // array of local array sizes
         uint32_t *l_offset;               // array of local array offsets
+        uint8_t *send_buf;                // byte buffer for variable name and value(s)
         uint8_t *val;                     // byte buffer for variable value(s)
         uint32_t size;                    // size of single element (bytes)
         int64_t length;                   // number of local elements
